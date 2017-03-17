@@ -322,10 +322,13 @@ unsigned long get_pa(unsigned long addr) {
 	return (pa << PAGE_SHIFT);
 }
 
+#define BAD_ADDR(x) ((unsigned long)(x) >= TASK_SIZE)
+
 unsigned long vm_mmap(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long offset)
 {
+	int orig_len = 0;
 	if (unlikely(offset + PAGE_ALIGN(len) < offset))
 		return -EINVAL;
 	if (unlikely(offset_in_page(offset)))
@@ -337,9 +340,43 @@ unsigned long vm_mmap(struct file *file, unsigned long addr,
 		struct vm_area_struct *new_vma;
 		unsigned long phys_addr;
 		*/
+		if (( flag &  MAP_APRIORI_PAGING ) ==  MAP_APRIORI_PAGING 
+			|| ( current->mm &&  (current->mm->apriori_paging_en == 1)
+			&& ( ((flag & (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED))  == ( MAP_PRIVATE | MAP_ANONYMOUS )) 
+			|| ( flag == MAP_PRIVATE )
+			|| ( flag == ( MAP_PRIVATE | MAP_POPULATE)) 
+			||  ( flag == ( MAP_PRIVATE | MAP_POPULATE | MAP_EXECUTABLE | MAP_DENYWRITE)))))
+		{
+			int j;
+			unsigned long nr_pages = len/PAGE_SIZE;
+			//		printk("nr_pages:%lu\n", nr_pages);
+			if( nr_pages < (1 << (MAX_ORDER-1))) /* Only optimize if less than 2^MAX_ORDER */ {
+				//			printk("Fixing the length artificially BEFORE:%lu\n", len);
+				orig_len = len;
+				/* Find out if len is too big, or if len is perfect fit.. modify orig_len accordingly*/
+				for (j = MAX_ORDER-1 ; j >= 0 ; j--) {
+					//				printk("Trying j:%d size:%d\n", j, (1 << j));
+					if ( (( 1 << j ) > nr_pages) && ((1 << (j-1)) < nr_pages)) {
+						//					printk("Found j:%d\n", j);
+						len = (1 << j)*PAGE_SIZE;
+						break;
+					}
+					else if ((1 << j)*PAGE_SIZE == len) { /* No changes needed */
+						orig_len = 0;
+					}
+				}
+				if (orig_len != len) 
+					printk("Fixing the length artificially AFTER:%lu\n", len);
+			}
+		}
 		addr = vm_mmap_pgoff(file, addr, len, prot, flag, offset >> PAGE_SHIFT);
 		printk("vm_mmap_pgoff addr:%lx len:%lx prot:%lx flag:%lx offset:%lx EXEC:%lu\n",
 			addr, len, prot, flag, offset, (prot & PROT_EXEC));
+		if (orig_len) {
+			printk("MUNMAP BEFORE start:%lx len:%lu\n", addr+orig_len, len-orig_len);
+			if (!BAD_ADDR(addr) && (len > orig_len))
+				vm_munmap(addr+orig_len, len-orig_len);
+		}
 		/*phys_addr = get_pa(addr);
 		if(addr != phys_addr && (addr>0) && 0) { 
 			vma =  find_vma(current->mm, addr);

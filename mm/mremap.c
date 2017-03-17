@@ -367,6 +367,10 @@ static struct vm_area_struct *vma_to_resize(unsigned long addr,
 	struct vm_area_struct *vma = find_vma(mm, addr);
 	unsigned long pgoff;
 
+	if(unlikely(mm->identity_mapping_en >= 1)) {
+		printk("VMA resized addr:%lx old_len:%lu new_len:%lu\n", addr, old_len, new_len);
+	}
+
 	if (!vma || vma->vm_start > addr)
 		return ERR_PTR(-EFAULT);
 

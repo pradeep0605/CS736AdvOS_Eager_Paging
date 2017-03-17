@@ -4339,7 +4339,7 @@ int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *v
         new_addr = ( addr + i * PAGE_SIZE );
 	vmf.address = new_addr & PAGE_MASK;
 	vmf.pgoff = linear_page_index(vma, new_addr);
-        
+        vmf.pmd = pmd; 
 	// do counter updates before entering really critical section.
         check_sync_rss_stat(current);
 

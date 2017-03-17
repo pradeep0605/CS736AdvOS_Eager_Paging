@@ -370,7 +370,7 @@ static unsigned long elf_map(struct file *filep, unsigned long addr,
 				phys_vma = find_vma(mm, phys_addr);
 
 				printk("BEFORE CODE remap vm_start VA:%lx PA:%lx\n", vma->vm_start, get_pa(vma->vm_start));
-				printk("BEFORE CODE remap vm_end VA:%lx PA:%lx\n", vma->vm_end-4096, get_pa(vma->vm_end-4096));
+				printk("BEFORE CODE remap vm_start+total_size-1 VA:%lx PA:%lx\n", vma->vm_start+total_size-1, get_pa(vma->vm_start+total_size-1));
 
 				if(phys_addr > TASK_SIZE - total_size)
 					printk("CODE remap: Error 1: No space\n");
@@ -383,7 +383,7 @@ static unsigned long elf_map(struct file *filep, unsigned long addr,
 					map_addr = move_vma(vma, vma->vm_start, PAGE_ALIGN(total_size), PAGE_ALIGN(total_size), phys_addr, &locked);
 					vma = find_vma(mm, map_addr);
 					printk("AFTER CODE remap old->vm_start VA:%lx PA:%lx\n", vma->vm_start, get_pa(vma->vm_start));
-					printk("AFTER CODE remap old->vm_end VA:%lx PA:%lx\n", vma->vm_end-4096, get_pa(vma->vm_end-4096));
+					printk("AFTER CODE remap vm_start+total_size-1 VA:%lx PA:%lx\n", vma->vm_start+total_size-1, get_pa(vma->vm_start+total_size-1));
 				}
 			}
 		} 
@@ -391,12 +391,17 @@ static unsigned long elf_map(struct file *filep, unsigned long addr,
 			map_addr = vm_mmap(filep, addr, total_size, prot, type, off);
 		if (!BAD_ADDR(map_addr))
 			vm_munmap(map_addr+size, total_size-size);
-	} else
-		map_addr = vm_mmap(filep, addr, size, prot, type, off);
+	} else {
+		if(unlikely(mm->identity_mapping_en >= 1)) {
+			map_addr = vm_mmap(filep, addr, size, prot, type|MAP_POPULATE, off);
+		}
+		else			
+			map_addr = vm_mmap(filep, addr, size, prot, type, off);
+	}
 
 	if(unlikely(mm->identity_mapping_en >= 1)) {
-		printk("elf_map: addr:%lx total_size:%lu size:%lu prot:%d\n", 
-			map_addr, total_size, size, prot);
+		printk("elf_map: addr:%lx phys_addr:%lx total_size:%lu size:%lu prot:%d\n", 
+			map_addr, get_pa(map_addr), total_size, size, prot);
 	}
 	
 	return(map_addr);

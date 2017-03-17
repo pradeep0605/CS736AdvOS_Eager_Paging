@@ -1498,21 +1498,24 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	else if ( (( flags &  MAP_APRIORI_PAGING ) ==  MAP_APRIORI_PAGING ) ||
 //             ( mm &&  mm->apriori_paging_en == 1  &&  ( (flags & (MAP_PRIVATE | MAP_EXECUTABLE)) == MAP_PRIVATE )) ||
              ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == MAP_PRIVATE )) ||
-             ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == ( MAP_PRIVATE | MAP_POPULATE))))
+             ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == ( MAP_PRIVATE | MAP_POPULATE))) ||
+             ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == ( MAP_PRIVATE | MAP_POPULATE | MAP_EXECUTABLE | MAP_DENYWRITE))))
         {
             if (prot == (PROT_READ | PROT_WRITE)) {
-                //mm->apriori_paging_mfile_en = 1;
                 *apriori_flag = 2; // memory mapped files
                 *populate = len;
                 //printk(KERN_INFO "mmap for memory mapped file - len: %ld...\n", len);
-            }
+            } else if(prot == (PROT_READ | PROT_EXEC)) {
+                *apriori_flag = 2; // memory mapped code segment 
+                *populate = len;
+	    }
         }
 	else if (mm &&  mm->apriori_paging_en == 1)
 	{
 		printk("VMA not under Apriori Paging Addr: %lx Len: %lu Flags: 0x%lx Prot: 0x%lx\n",addr,len,flags,prot);
 	}
 
-	if(mm && mm->apriori_paging_en == 1 && *populate == len) 
+	if(mm && mm->apriori_paging_en == 1 && *apriori_flag > 0) 
 	{
 		printk("VMA handled under Apriori Paging Addr: %lx Len: %lu Flags: 0x%lx Prot: 0x%lx\n",addr,len,flags,prot);
 	}
@@ -1569,12 +1572,13 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
 
-        if ( !file 
-	&& (( flags &  MAP_APRIORI_PAGING ) ==  MAP_APRIORI_PAGING 
+        if (( flags &  MAP_APRIORI_PAGING ) ==  MAP_APRIORI_PAGING 
 	|| ( mm &&  (mm->apriori_paging_en == 1)  &&  
 		( ((flags & (MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED))  == ( MAP_PRIVATE | MAP_ANONYMOUS )) 
 		|| ( flags == MAP_PRIVATE )
-                || ( flags == ( MAP_PRIVATE | MAP_POPULATE)) )))) {
+                || ( flags == ( MAP_PRIVATE | MAP_POPULATE)) 
+                ||  ( flags == ( MAP_PRIVATE | MAP_POPULATE | MAP_EXECUTABLE | MAP_DENYWRITE)))))
+		{
 		int j;
 		unsigned long nr_pages = len/PAGE_SIZE;
 //		printk("nr_pages:%lu\n", nr_pages);
@@ -1584,7 +1588,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 			/* Find out if len is too big, or if len is perfect fit.. modify orig_len accordingly*/
 			for (j = MAX_ORDER-1 ; j >= 0 ; j--) {
 //				printk("Trying j:%d size:%d\n", j, (1 << j));
-				if ( (( 1 << j ) > nr_pages) && ((1 << (j-1)) <= nr_pages)) {
+				if ( (( 1 << j ) > nr_pages) && ((1 << (j-1)) < nr_pages)) {
 //					printk("Found j:%d\n", j);
 					len = (1 << j)*PAGE_SIZE;
 					break;
@@ -1593,14 +1597,7 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 					orig_len = 0;
 				}
 			}
-			/* Edge case: not due to rounding error */
-			if(j > 0) {
-				if((1 << (j-1))*PAGE_SIZE == len) {
-					len = orig_len;
-					orig_len = 0;
-				}
-			}
-			if (orig_len < len) 
+			if (orig_len != len) 
 				printk("Fixing the length artificially AFTER:%lu\n", len);
 		}
 	}
