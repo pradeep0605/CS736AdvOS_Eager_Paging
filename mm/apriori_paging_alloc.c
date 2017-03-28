@@ -17,7 +17,7 @@
  */
 
 asmlinkage long sys_test_syscall(void) {
-	printk(KERN_ERR "\n\n======================\nPrintK: Inside system calls (%s)"
+	printk(KERN_ALERT "\n\n======================\nPrintK: Inside system calls (%s)"
 		"\n============================\n\n", __func__);
 	pr_err("\n\n======================\npr_err: Inside system calls (%s)"
 		"\n============================\n\n", __func__);
@@ -36,7 +36,7 @@ SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned i
     unsigned long pid;
 
 	
-	printk(KERN_ERR "\n\n======================\nInside system calls (%s)"
+	printk(KERN_ALERT "\n\n======================\nInside system calls (%s)"
 		"\n============================\n\n", __func__);
     if ( option > 0 ) {
         for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
