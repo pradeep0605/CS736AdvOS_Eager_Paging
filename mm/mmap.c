@@ -1496,9 +1496,9 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	}
 */
 	else if ( (( flags &  MAP_APRIORI_PAGING ) ==  MAP_APRIORI_PAGING ) ||
-             ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == MAP_PRIVATE )) ||
-             ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == ( MAP_PRIVATE | MAP_POPULATE))))
-        {
+		( mm &&  mm->apriori_paging_en == 1  &&  ( flags == MAP_PRIVATE )) ||
+        ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == ( MAP_PRIVATE | MAP_POPULATE))))
+		{
             if (prot == (PROT_READ | PROT_WRITE)) {
                 //mm->apriori_paging_mfile_en = 1;
                 *apriori_flag = 2; // memory mapped files
