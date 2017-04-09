@@ -932,6 +932,13 @@ static int load_elf_binary(struct linux_binprm *bprm)
 
 		error = elf_map(bprm->file, load_bias + vaddr, elf_ppnt,
 				elf_prot, elf_flags, total_size);
+		/* Pradeep: TODO. Need to see if this part of the code is needed. */
+#if 0
+		if (total_size > 0) {
+			base_addr = error;
+			base_size = total_size;
+		}
+#endif
 		if (BAD_ADDR(error)) {
 			retval = IS_ERR((void *)error) ?
 				PTR_ERR((void*)error) : -EINVAL;
@@ -980,6 +987,9 @@ static int load_elf_binary(struct linux_binprm *bprm)
 			elf_brk = k;
 	}
 
+	/* Pradeep: TODO: If needed include Swapnil's patch here.
+	   https://github.com/swapnilh/linux/commit/e8e6ae4d335b20c356451ae80dd04c4d54585f60
+	*/
 	loc->elf_ex.e_entry += load_bias;
 	elf_bss += load_bias;
 	elf_brk += load_bias;
