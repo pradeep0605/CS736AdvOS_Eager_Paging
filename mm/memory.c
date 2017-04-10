@@ -2902,12 +2902,9 @@ int __do_fault(struct vm_fault *vmf)
 		return VM_FAULT_HWPOISON;
 	}
 
-	if (unlikely(!(ret & VM_FAULT_LOCKED))) {
-		if(current->mm->identity_mapping_en>=2)
-			printk("Page:%lx is Locked!\n", vmf->address);
+	if (unlikely(!(ret & VM_FAULT_LOCKED)))
 		lock_page(vmf->page);
-	}
-	else 
+	else
 		VM_BUG_ON_PAGE(!PageLocked(vmf->page), vmf->page);
 
 	return ret;
@@ -3964,7 +3961,7 @@ int follow_pfn(struct vm_area_struct *vma, unsigned long address,
 	spinlock_t *ptl;
 	pte_t *ptep;
 
-	if (!(vma->vm_flags & (VM_IO | VM_PFNMAP)) && current->mm->identity_mapping_en == 0)
+	if (!(vma->vm_flags & (VM_IO | VM_PFNMAP)))
 		return ret;
 
 	ret = follow_pte(vma->vm_mm, address, &ptep, &ptl);
@@ -4311,10 +4308,6 @@ int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *v
 	    .pgoff = linear_page_index(vma, new_addr),
 	    .gfp_mask = __get_fault_gfp_mask(vma),
     };
-<<<<<<< HEAD
-=======
-
->>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
     pgd = pgd_offset(mm, addr);
     if (pgd_none(*pgd) || pgd_bad(*pgd))
         printk(KERN_INFO "Bad pgd");
@@ -4346,11 +4339,7 @@ int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *v
         new_addr = ( addr + i * PAGE_SIZE );
 	vmf.address = new_addr & PAGE_MASK;
 	vmf.pgoff = linear_page_index(vma, new_addr);
-<<<<<<< HEAD
         
-=======
-        vmf.pmd = pmd;	
->>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
 	// do counter updates before entering really critical section.
         check_sync_rss_stat(current);
 
@@ -4394,11 +4383,7 @@ int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *v
 
         pgoff = (((new_addr & PAGE_MASK)
                 - vma->vm_start) >> PAGE_SHIFT) + vma->vm_pgoff;
-<<<<<<< HEAD
 
-=======
-	//vmf.pgoff = pgoff;
->>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
         if (unlikely(anon_vma_prepare(vma)))
             return VM_FAULT_OOM;
 
@@ -4433,11 +4418,7 @@ int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *v
 //            page_cache_release(fault_page);
 //            goto uncharge_out;
 //        }
-<<<<<<< HEAD
 
-=======
-	
->>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
         alloc_set_pte(&vmf, memcg, new_page);
         pte_unmap_unlock(ptep, ptl);
         unlock_page(vmf.page);
@@ -4608,11 +4589,6 @@ int fill_page_table_manually(struct mm_struct *mm , struct vm_area_struct *vma, 
         pte_unmap_unlock(ptep,ptl);
 
     }
-<<<<<<< HEAD
-=======
-	/* We converted one big page into multiple smaller pages, so overcounted by one */
-        dec_mm_counter_fast(mm, MM_ANONPAGES); 
->>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
 	vma->apriori_en=1;
 
     return 0;
