@@ -298,7 +298,11 @@ unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 	struct mm_struct *mm = current->mm;
 	unsigned long populate;
 	unsigned long apriori_flag;
+<<<<<<< HEAD
 
+=======
+	
+>>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
 	ret = security_mmap_file(file, prot, flag);
 	if (!ret) {
 		if (down_write_killable(&mm->mmap_sem))
@@ -312,6 +316,16 @@ unsigned long vm_mmap_pgoff(struct file *file, unsigned long addr,
 	return ret;
 }
 
+unsigned long get_pa(unsigned long addr) {
+	unsigned long pa = 0;
+	struct vm_area_struct *vma = find_vma(current->mm, addr);
+	if(follow_pfn(vma, addr, &pa) < 0) { 
+		printk("Unable to retrieve pfn for addr:%lx\n", addr);
+		return -1;
+	}
+	return (pa << PAGE_SHIFT);
+}
+
 unsigned long vm_mmap(struct file *file, unsigned long addr,
 	unsigned long len, unsigned long prot,
 	unsigned long flag, unsigned long offset)
@@ -320,8 +334,14 @@ unsigned long vm_mmap(struct file *file, unsigned long addr,
 		return -EINVAL;
 	if (unlikely(offset_in_page(offset)))
 		return -EINVAL;
-
-	return vm_mmap_pgoff(file, addr, len, prot, flag, offset >> PAGE_SHIFT);
+	if(unlikely(current->mm->identity_mapping_en >= 1)) {
+		addr = vm_mmap_pgoff(file, addr, len, prot, flag, offset >> PAGE_SHIFT);
+		printk("vm_mmap_pgoff addr:%lx len:%lx prot:%lx flag:%lx offset:%lx EXEC:%lu\n",
+			addr, len, prot, flag, offset, (prot & PROT_EXEC));
+		return addr;
+	}	
+	else
+		return vm_mmap_pgoff(file, addr, len, prot, flag, offset >> PAGE_SHIFT);
 }
 EXPORT_SYMBOL(vm_mmap);
 

@@ -66,6 +66,11 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+#include <linux/mman.h>
+
+extern int is_process_of_identity_mapping_testing(const char* proc_name);
+extern int is_process_of_identity_mapping_stable(const char* proc_name);
+extern int is_process_of_apriori_paging(const char* proc_name);
 
 extern int is_process_of_identity_mapping(const char* proc_name);
 extern int is_process_of_apriori_paging(const char* proc_name);
@@ -267,6 +272,7 @@ static int __bprm_mm_init(struct linux_binprm *bprm)
 	struct vm_area_struct *vma = NULL;
 	struct mm_struct *mm = bprm->mm;
 
+	/* Temporary stack is allocated here */
 	bprm->vma = vma = kmem_cache_zalloc(vm_area_cachep, GFP_KERNEL);
 	if (!vma)
 		return -ENOMEM;
@@ -671,7 +677,67 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	unsigned long stack_size;
 	unsigned long stack_expand;
 	unsigned long rlim_stack;
+	struct vm_area_struct *new_vma;
 
+	if(unlikely(mm->identity_mapping_en >= 1)) {
+		unsigned long phys_addr = 0;
+		struct vm_area_struct *phys_vma;
+//		struct vm_area_struct *prev_ver = NULL;
+		bool locked = false;
+		unsigned long new_size = 8388608UL;
+		unsigned long new_base;
+		unsigned long prot_flags;
+		unsigned long map_flags;
+
+//		vm_flags = VM_STACK_FLAGS;
+		prot_flags = PROT_GROWSDOWN;
+		prot_flags |= PROT_READ|PROT_WRITE|PROT_EXEC;
+		map_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK | MAP_POPULATE;
+		/*
+		 * Adjust stack execute permissions; explicitly enable for
+		 * EXSTACK_ENABLE_X, disable for EXSTACK_DISABLE_X and leave alone
+		 * (arch default) otherwise.
+		 */
+		if (unlikely(executable_stack == EXSTACK_ENABLE_X))
+			prot_flags |= PROT_EXEC;
+		else if (executable_stack == EXSTACK_DISABLE_X)
+			prot_flags &= ~PROT_EXEC;
+//		vm_flags |= mm->def_flags;
+//		vm_flags |= VM_STACK_INCOMPLETE_SETUP;
+
+
+		new_base = vm_mmap(NULL, 0, new_size, prot_flags, map_flags, 0);
+		
+		stack_top = new_base + new_size - 4096; //Leaving space at the end
+		stack_size = vma->vm_end - vma->vm_start;
+		printk("BEFORE stack remap base VA:%lx PA:%lx\n", new_base, get_pa(new_base));
+		printk("BEFORE stack remap top VA:%lx PA:%lx\n", stack_top, get_pa(stack_top));
+		phys_addr = get_pa(new_base);
+		phys_vma = find_vma(mm, phys_addr);
+		new_vma = find_vma(mm, new_base);
+//		ret = mprotect_fixup(new_vma, &prev_ver, new_vma->vm_start, new_vma->vm_end,
+//				vm_flags);
+		printk("BEFORE stack remap old->vm_start VA:%lx PA:%lx\n", new_vma->vm_start, get_pa(new_vma->vm_start));
+		printk("BEFORE stack remap old->vm_end VA:%lx PA:%lx\n", new_vma->vm_end-4096, get_pa(new_vma->vm_end-4096));
+
+		if(phys_addr > TASK_SIZE - new_size)
+			printk(".txt remap: Error 1: No space\n");
+		else if(phys_vma && (phys_addr + new_size > phys_vma->vm_start)){
+			printk(".txt remap: Error 2: vma issues\n");
+			if(phys_vma)
+				printk("Conflicting vma start:%lx\n", phys_vma->vm_start);
+		}
+		else if(get_pa(new_vma->vm_start)!=0 && mm->identity_mapping_en >= 2){
+			unsigned long temp_base = move_vma(new_vma, new_vma->vm_start, PAGE_ALIGN(new_size), PAGE_ALIGN(new_size), phys_addr, &locked);
+			stack_top = temp_base + new_size - 4096; //Leaving space at the end
+			printk("AFTER stack_base:%lx stack_top:%lx\n", temp_base, stack_top);
+			new_vma = find_vma(mm, temp_base);
+			printk("AFTER stack remap old->vm_start VA:%lx PA:%lx\n", new_vma->vm_start, get_pa(new_vma->vm_start));
+			printk("AFTER stack remap old->vm_end VA:%lx PA:%lx\n", new_vma->vm_end-4096, get_pa(new_vma->vm_end-4096));
+		}
+		printk("stack vm->end:%lx stack_top:%lx\n", new_vma->vm_end, stack_top);
+	}
+	/* Swapnil: Considering STACK grows down */
 #ifdef CONFIG_STACK_GROWSUP
 	/* Limit stack size */
 	stack_base = rlimit_max(RLIMIT_STACK);
@@ -694,8 +760,16 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	stack_top = arch_align_stack(stack_top);
 	stack_top = PAGE_ALIGN(stack_top);
 
-	if (unlikely(stack_top < mmap_min_addr) ||
-	    unlikely(vma->vm_end - vma->vm_start >= stack_top - mmap_min_addr))
+	if(unlikely(mm->identity_mapping_en >= 1)) {
+		printk("Updated stack_top:%lx\n", stack_top);
+		printk("Original arg_start:%lx vma->vm_start:%lx vma->vm_end:%lx\n", 
+			bprm->p, vma->vm_start, vma->vm_end);
+		printk("bprm->p:%lx bprm->exec:%lx bprm->loader:%lx\n", bprm->p, bprm->exec, bprm->loader);
+	}
+
+	if ((unlikely(stack_top < mmap_min_addr) ||
+	    unlikely(vma->vm_end - vma->vm_start >= stack_top - mmap_min_addr)
+		) && unlikely(mm->identity_mapping_en >= 1))
 		return -ENOMEM;
 
 	stack_shift = vma->vm_end - stack_top;
@@ -732,16 +806,65 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	BUG_ON(prev != vma);
 
 	/* Move stack pages down in memory. */
-	if (stack_shift) {
+	if (stack_shift && mm->identity_mapping_en == 0) {
 		ret = shift_arg_pages(vma, stack_shift);
 		if (ret)
 			goto out_unlock;
+		/* mprotect_fixup is overkill to remove the temporary stack flags */
+		vma->vm_flags &= ~VM_STACK_INCOMPLETE_SETUP;
+	}
+	else if(mm->identity_mapping_en >=1) { /* Swapnil -> need to copy over pages from vma to new_vma too */
+		unsigned long copy_size = vma->vm_end - vma->vm_start;
+		unsigned long dest_start = stack_top - copy_size; 
+		unsigned long old_start = vma->vm_start;
+		unsigned long old_end = vma->vm_end;
+		struct mmu_gather tlb;
+		printk("Trying to move stack\n");
+		printk("dest_start:%lx copy_size:%lx\n", dest_start, copy_size);
+		if (copy_size != move_page_tables(vma, old_start, new_vma,
+						dest_start, copy_size, false))
+			return -ENOMEM;
+
+		lru_add_drain();
+		tlb_gather_mmu(&tlb, mm, old_start, old_end);
+		
+		if (stack_top > old_start) {
+			/*
+			 * when the old and new regions overlap clear from new_end.
+			 */
+//			free_pgd_range(&tlb, stack_top, old_end, stack_top,
+//					new_vma->vm_next ? new_vma->vm_next->vm_start : US);
+			return -ENOMEM; // Handle this better
+		} else {
+			/*
+			 * otherwise, clean from old_start; this is done to not touch
+			 * the address space in [new_end, old_start) some architectures
+		 * have constraints on va-space that make this illegal (IA64) -
+		 * for the others its just a little faster.
+		 */
+			printk("Making sure we are cleaning the right place:%lx\n", vma->vm_start);
+			free_pgd_range(&tlb, old_start, old_end, dest_start,
+					USER_PGTABLES_CEILING);
+			tlb_finish_mmu(&tlb, old_start, old_end);
+		}
+		printk("AFTER stack copy old->vm_start VA:%lx PA:%lx\n", new_vma->vm_start, get_pa(new_vma->vm_start));
+		printk("AFTER stack copy old->vm_end VA:%lx PA:%lx\n", new_vma->vm_end-4096, get_pa(new_vma->vm_end-4096));
+		printk("Succeeded in copying stack\n");
+		printk("bprm->p:%lx bprm->exec:%lx bprm->loader:%lx\n", bprm->p, bprm->exec, bprm->loader);
+	}
+	else if(mm->identity_mapping_en >=1) { /* Swapnil -> need to copy over pages from vma to new_vma too */
+		//unsigned long copy_size = vma->vm_end - vma->vm_start;
+		//unsigned long dest_start = stack_top - copy_size; 
+//		memcpy(dest_start, )
+		/* How does one go about copying USERSPACE data in KERNELSPACE?? */
 	}
 
-	/* mprotect_fixup is overkill to remove the temporary stack flags */
-	vma->vm_flags &= ~VM_STACK_INCOMPLETE_SETUP;
-
-	stack_expand = 131072UL; /* randomly 32*4k (or 2*64k) pages */
+	if(unlikely(mm->identity_mapping_en >= 1)) {
+		stack_expand = 0; /* We already allocate max possible = 8MB */
+		stack_base = new_vma->vm_start;
+	}
+	else
+		stack_expand = 131072UL; /* randomly 32*4k (or 2*64k) pages */
 	stack_size = vma->vm_end - vma->vm_start;
 	/*
 	 * Align this down to a page boundary as expand_stack
@@ -754,16 +877,21 @@ int setup_arg_pages(struct linux_binprm *bprm,
 	else
 		stack_base = vma->vm_end + stack_expand;
 #else
-	if (stack_size + stack_expand > rlim_stack)
-		stack_base = vma->vm_end - rlim_stack;
-	else
-		stack_base = vma->vm_start - stack_expand;
+	if(mm->identity_mapping_en <1) {
+		if (stack_size + stack_expand > rlim_stack)
+			stack_base = vma->vm_end - rlim_stack;
+		else
+			stack_base = vma->vm_start - stack_expand; 
+	}
 #endif
+	/*SWAPNIL: WTF is this ??*/
 	current->mm->start_stack = bprm->p;
-	ret = expand_stack(vma, stack_base);
+	if(mm->identity_mapping_en <1) {
+		ret = expand_stack(vma, stack_base);
+	}
+	
 	if (ret)
 		ret = -EFAULT;
-
 out_unlock:
 	up_write(&mm->mmap_sem);
 	return ret;
@@ -1321,7 +1449,12 @@ void setup_new_exec(struct linux_binprm * bprm)
 	perf_event_exec();
 	__set_task_comm(current, kbasename(bprm->filename), true);
 
+<<<<<<< HEAD
         /* SWAPNIL: Check if we need to enable apriori paging for this process*/
+=======
+	/* SWAPNIL: Check if we need to enable apriori paging for this process*/
+        current->mm->apriori_paging_en = 0;
+>>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
         if(is_process_of_apriori_paging(current->comm))
         {
                 current->mm->apriori_paging_en = 1;
@@ -1332,6 +1465,7 @@ void setup_new_exec(struct linux_binprm * bprm)
                 current->mm->apriori_paging_en = 1;
         }
         /* SWAPNIL: Check if we need to enable identity_mapping for this process*/
+<<<<<<< HEAD
         if(is_process_of_identity_mapping(current->comm))
         {
                 current->mm->identity_mapping_en = 1;
@@ -1340,6 +1474,25 @@ void setup_new_exec(struct linux_binprm * bprm)
         if(current && current->real_parent && current->real_parent != current && current->real_parent->mm && current->real_parent->mm->identity_mapping_en)
         {
                 current->mm->identity_mapping_en = 1;
+=======
+        current->mm->identity_mapping_en = 0;
+        if(is_process_of_identity_mapping_stable(current->comm))
+        {
+                current->mm->identity_mapping_en = 1;
+		printk("identity_mapping (stable) enabled for proc:%s\n", current->comm);
+		//arch_pick_mmap_layout(current->mm);
+        }
+        else if(is_process_of_identity_mapping_testing(current->comm))
+        {
+                current->mm->identity_mapping_en = 2;
+		printk("identity_mapping (testing) enabled for proc:%s\n", current->comm);
+	}
+        if(current && current->real_parent && current->real_parent != current && current->real_parent->mm && current->real_parent->mm->identity_mapping_en)
+        {
+                current->mm->identity_mapping_en = 1;
+		printk("Discard after testing: identity_mapping enabled for child or thread\n");
+		//arch_pick_mmap_layout(current->mm);
+>>>>>>> 0b79b7e023a8dc682e37f825b38b50926d9d5700
         }
 
 	/* Set the new mm task size. We have to do that late because it may
