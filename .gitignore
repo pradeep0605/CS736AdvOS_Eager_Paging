@@ -39,10 +39,6 @@ Module.symvers
 *.su
 *.c.[012]*.*
 
-
-/EP_auxiliary_files/a.out
-EP_auxiliary_files/apriori_set_eager_paging.out
-EP_auxiliary_files/mmap.c
 #
 # Top-level generic files
 #
@@ -55,6 +51,7 @@ EP_auxiliary_files/mmap.c
 /vmlinuz
 /System.map
 /Module.markers
+
 #
 # Debian directory (make deb-pkg)
 #
