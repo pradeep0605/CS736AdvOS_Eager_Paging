@@ -321,7 +321,6 @@ unsigned long get_pa(unsigned long addr) {
 	}
 	return (pa << PAGE_SHIFT);
 }
-//EXPORT_SYMBOL_GPL(get_pa);
 
 #define BAD_ADDR(x) ((unsigned long)(x) >= TASK_SIZE)
 

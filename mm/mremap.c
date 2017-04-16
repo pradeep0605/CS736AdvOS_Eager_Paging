@@ -248,7 +248,7 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 	return len + old_addr - old_end;	/* how much done */
 }
 
-static unsigned long move_vma(struct vm_area_struct *vma,
+unsigned long move_vma(struct vm_area_struct *vma,
 		unsigned long old_addr, unsigned long old_len,
 		unsigned long new_len, unsigned long new_addr, bool *locked)
 {
@@ -359,6 +359,7 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 
 	return new_addr;
 }
+EXPORT_SYMBOL(move_vma);
 
 static struct vm_area_struct *vma_to_resize(unsigned long addr,
 	unsigned long old_len, unsigned long new_len, unsigned long *p)

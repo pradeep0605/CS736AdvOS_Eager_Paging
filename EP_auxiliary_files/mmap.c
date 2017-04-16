@@ -1500,7 +1500,6 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
              ( mm &&  mm->apriori_paging_en == 1  &&  ( flags == ( MAP_PRIVATE | MAP_POPULATE | MAP_EXECUTABLE | MAP_DENYWRITE))))
 	{
             if (prot == (PROT_READ | PROT_WRITE)) {
-                //mm->apriori_paging_mfile_en = 1;
                 *apriori_flag = 2; // memory mapped files
                 *populate = len;
                 //printk(KERN_INFO "mmap for memory mapped file - len: %ld...\n", len);
@@ -1526,12 +1525,6 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 }
 
 #define BAD_ADDR(x) ((unsigned long)(x) >= TASK_SIZE)
-
-unsigned long get_pa(unsigned long addr);
-
-static unsigned long move_vma(struct vm_area_struct *vma,
-		unsigned long old_addr, unsigned long old_len,
-		unsigned long new_len, unsigned long new_addr, bool *locked);
 
 SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 		unsigned long, prot, unsigned long, flags,
@@ -1627,8 +1620,10 @@ MAP_FIXED)
 		phys_addr = get_pa(retval);
 		phys_vma = find_vma(mm, phys_addr);
 		
-		printk("BEFORE MMAP remap vm_start VA:%lx PA:%lx\n", vma->vm_start, get_pa(vma->vm_start));
-		printk("BEFORE MMAP remap vm_end VA:%lx PA:%lx\n", vma->vm_end-4096, get_pa(vma->vm_end-4096));
+		printk("BEFORE MMAP remap vm_start VA:%lx PA:%lx\n", vma->vm_start,
+get_pa(vma->vm_start));
+		printk("BEFORE MMAP remap vm_end VA:%lx PA:%lx\n", vma->vm_end-4096,
+get_pa(vma->vm_end-4096));
 		
 		if(phys_addr > TASK_SIZE - len)
 			printk("MMAP remap: Error 1: No space\n");
@@ -1637,13 +1632,15 @@ MAP_FIXED)
 			if(phys_vma)
 				printk("Conflicting vma start:%lx\n", phys_vma->vm_start);
 		}
-		else if(get_pa(vma->vm_start)!=0 && current->mm->identity_mapping_en >= 2){
-			retval = move_vma(vma, vma->vm_start, PAGE_ALIGN(len), PAGE_ALIGN(len), phys_addr, &locked);
+		else if(get_pa(vma->vm_start)!=0 && current->mm->identity_mapping_en >=
+2){
+			retval = move_vma(vma, vma->vm_start, PAGE_ALIGN(len),
+PAGE_ALIGN(len), phys_addr, &locked);
 			vma = find_vma(mm, retval);
 			printk("AFTER MMAP remap old->vm_start VA:%lx PA:%lx\n",
-				vma->vm_start, get_pa(vma->vm_start));
+vma->vm_start, get_pa(vma->vm_start));
 			printk("AFTER MMAP remap old->vm_end VA:%lx PA:%lx\n",
-				vma->vm_end-4096, get_pa(vma->vm_end-4096));
+vma->vm_end-4096, get_pa(vma->vm_end-4096));
 /*			if (offset_in_page(ret)) {
 				vm_unacct_memory(charged);
 				locked = 0;
@@ -2305,7 +2302,8 @@ find_vma_prev(struct mm_struct *mm, unsigned long addr,
  * update accounting. This is shared with both the
  * grow-up and grow-down cases.
  */
-static int acct_stack_growth(struct vm_area_struct *vma, unsigned long size, unsigned long grow)
+static int acct_stack_growth(struct vm_area_struct *vma, unsigned long size,
+unsigned long grow)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct rlimit *rlim = current->signal->rlim;
@@ -2862,7 +2860,8 @@ SYSCALL_DEFINE5(remap_file_pages, unsigned long, start, unsigned long, size,
 	struct file *file;
 	unsigned long apriori_flag = 0;
 
-	pr_warn_once("%s (%d) uses deprecated remap_file_pages() syscall. See Documentation/vm/remap_file_pages.txt.\n",
+	pr_warn_once("%s (%d) uses deprecated remap_file_pages() syscall. See
+Documentation/vm/remap_file_pages.txt.\n",
 		     current->comm, current->pid);
 
 	if (prot)
@@ -3246,7 +3245,8 @@ bool may_expand_vm(struct mm_struct *mm, vm_flags_t flags, unsigned long npages)
 		    mm->data_vm + npages <= rlimit_max(RLIMIT_DATA) >> PAGE_SHIFT)
 			return true;
 		if (!ignore_rlimit_data) {
-			pr_warn_once("%s (%d): VmData %lu exceed data ulimit %lu. Update limits or use boot option ignore_rlimit_data.\n",
+			pr_warn_once("%s (%d): VmData %lu exceed data ulimit %lu. Update
+limits or use boot option ignore_rlimit_data.\n",
 				     current->comm, current->pid,
 				     (mm->data_vm + npages) << PAGE_SHIFT,
 				     rlimit(RLIMIT_DATA));
@@ -3707,8 +3707,10 @@ static struct notifier_block reserve_mem_nb = {
 static int __meminit init_reserve_notifier(void)
 {
 	if (register_hotmemory_notifier(&reserve_mem_nb))
-		pr_err("Failed registering memory add/remove notifier for admin reserve\n");
+		pr_err("Failed registering memory add/remove notifier for admin
+reserve\n");
 
 	return 0;
 }
 subsys_initcall(init_reserve_notifier);
+
