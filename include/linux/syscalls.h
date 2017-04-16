@@ -909,5 +909,5 @@ asmlinkage long sys_init_identity_map(const char __user** process_name, unsigned
 
 asmlinkage long sys_test_syscall(void);
 asmlinkage long sys_list_ep_apps(void);
-asmlinkage long sys_clear_ep_apps_list(void);
+asmlinkage long sys_clear_ep_apps_list(const char __user* process_name);
 #endif
