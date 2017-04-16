@@ -17,11 +17,40 @@
  */
 
 asmlinkage long sys_test_syscall(void) {
-	printk(KERN_ALERT "\n\n======================\nPrintK: Inside system calls (%s)"
-		"\n============================\n\n", __func__);
+}
+
+// asmlinkage long sys_list_ep_apps(void) {
+asmlinkage long sys_list_ep_apps(void) {
 	pr_err("\n\n======================\npr_err: Inside system calls (%s)"
 		"\n============================\n\n", __func__);
-		return 0xdeadbeef;
+	
+	int i = 0;
+	pr_err("\n\n =================== Listing all Eager Paging Enabled"
+		"pplications =========================\n");
+    for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
+		if (apriori_paging_process[i][0] == '\0') {
+			break;
+		}
+		pr_err("%s\n", apriori_paging_process[i]);
+    }
+	return 0xdeadbeef;
+}
+
+asmlinkage long sys_clear_ep_apps_list(void) {
+	pr_err("\n\n======================\npr_err: Inside system calls (%s)"
+		"\n============================\n\n", __func__);
+
+	int i = 0;
+	pr_err("\n\n =================== Clearing all Eager Paging Enabled"
+		"pplications =========================\n");
+    for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
+		if (apriori_paging_process[i][0] != '\0') {
+			pr_err("%s\n", apriori_paging_process[i]);
+			apriori_paging_process[i][0] = '\0';
+		}
+	}
+
+	return 0xdeadbeef;
 }
 
 

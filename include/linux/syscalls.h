@@ -906,5 +906,8 @@ asmlinkage long sys_order_count(pid_t pid, int condition);
 asmlinkage long sys_apriori_paging_alloc(const char __user** proc_name, unsigned int num_procs, int option);
 //asmlinkage long sys_init_badger_trap(const char __user** process_name, unsigned long num_procs, int options);
 asmlinkage long sys_init_identity_map(const char __user** process_name, unsigned int num_procs, int options);
+
 asmlinkage long sys_test_syscall(void);
+asmlinkage long sys_list_ep_apps(void);
+asmlinkage long sys_clear_ep_apps_list(void);
 #endif

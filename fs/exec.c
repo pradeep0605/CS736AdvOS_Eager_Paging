@@ -1327,6 +1327,9 @@ void setup_new_exec(struct linux_binprm * bprm)
                 current->mm->apriori_paging_en = 1;
         }
 
+		/* Pradeep: If eager paging is enabled for Parent, then enable eager
+		 * paging for child as well.
+		 */
         if(current && current->real_parent && current->real_parent != current && current->real_parent->mm && current->real_parent->mm->apriori_paging_en)
         {
                 current->mm->apriori_paging_en = 1;
