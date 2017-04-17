@@ -4453,8 +4453,12 @@ int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *v
  *  the rest of the small pages. We need it to create page table entries.
  */
 
-//EXPORT_SYMBOL(fill_page_table_manually_cow);
+//EXPORT_SYMBOL(fill_page_table_manually_coaw);
 
+
+/* Team root: Go through this link to understand pgd, pud, pmd, pte
+   https://lwn.net/Articles/117749/
+*/
 int fill_page_table_manually(struct mm_struct *mm , struct vm_area_struct *vma, unsigned long addr, unsigned int nr_pages)
 {
     int i;
@@ -4481,12 +4485,35 @@ int fill_page_table_manually(struct mm_struct *mm , struct vm_area_struct *vma, 
     *  Then we use the pte to move informations to a temporary struct page ! ( pg )
     */
 
+	/* Team Root:  pgd = Page Global Directory.
+	   pgd_offset() function gives the offset within the page directory, which 
+	   will be taken for finding the physical address. This is the top-level 
+	   page directory. From this entry, we generate pud.
+
+		Bits 39-46 for Page Global Directory, i.e., 8 bits and hence maximum of 
+		256 entires
+	*/
     pgd = pgd_offset(mm, addr);
     if (pgd_none(*pgd) || pgd_bad(*pgd))
         printk(KERN_INFO "Bad pgd");
+
+	/* Team Root: pud = Page Upper Directory
+	   This is the second-level page directory. 
+
+	   Bits 30-38 for Page Upper Direcotry, I.e., 9 bits and hence maximm of 512
+	   entries.
+	*/
+
     pud = pud_offset(pgd, addr);
     if (pud_none(*pud) || pud_bad(*pud))
         printk(KERN_INFO "Bad pud");
+	
+	/* Team Root: pmd = Page Middle-Level Directory
+	   This is the third level page directory.
+
+	   bits 21-29 for Page Middle-level Directory. I.e., 9 bits and hence
+	   maximum of 512 entries.
+	*/
     pmd = pmd_offset(pud, addr);
     if (pmd_none(*pmd) || pmd_bad(*pmd))
     {
@@ -4496,8 +4523,17 @@ int fill_page_table_manually(struct mm_struct *mm , struct vm_area_struct *vma, 
             printk(KERN_INFO "Bad pmd");
     }
 
+	/* Team Root: pte : Page Table Entry
+	   This is the last level Page table.
+
+	   bits 12-20 for PTE, which means 9 bits and hence maximum of 512 entries
+	*/
     ptep = pte_offset_map_lock(mm,pmd,addr,&ptl);
     pte = *ptep;
+
+	/* Team Root: 
+	   last 12 bits are offest within each page.
+	*/
     /* Gets the page struct of the physical page */
     pg = pte_page(pte);
     __SetPageUptodate(pg);
@@ -4506,7 +4542,6 @@ int fill_page_table_manually(struct mm_struct *mm , struct vm_area_struct *vma, 
 
     for ( i = 1 ; i < nr_pages ; i++ )
     {
-
         __set_current_state(TASK_RUNNING);
 
         count_vm_event(PGFAULT);
