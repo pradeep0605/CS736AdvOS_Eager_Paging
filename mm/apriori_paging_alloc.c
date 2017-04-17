@@ -16,28 +16,52 @@
  *
  */
 
+/* ALL golbals here */
+char apriori_paging_process[CONFIG_NR_CPUS][MAX_PROC_NAME_LEN];
+unsigned char enable_dump_stack;
+
+
+
 int indexof_apriori_paged_process(const char* proc_name);
 
-asmlinkage long sys_test_syscall(void) {
+asmlinkage long sys_ep_control_syscall(int val) {
+
+	pr_err("\n======================Inside system calls (%s)"
+		"============================", __func__);
+
+	switch (val) {
+		case 1:
+			enable_dump_stack = 1;
+			pr_err("EP: Enabled stack dump");
+			break;
+		case -1:
+			enable_dump_stack = 0;
+			pr_err("EP: Disabled stack dump");
+			break;
+
+	}
+	return 0;
 }
 
 // asmlinkage long sys_list_ep_apps(void) {
 asmlinkage long sys_list_ep_apps() {
-	pr_err("\n\n======================\npr_err: Inside system calls (%s)"
-		"\n============================\n\n", __func__);
+	pr_err("\n====================== Inside system calls (%s)"
+		"============================", __func__);
 	
 		int i = 0;
-		pr_err("\n\n =================== Listing all Eager Paging Enabled"
+		pr_err(" =================== Listing all Eager Paging Enabled"
 			"pplications =========================\n");
 		for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
-			pr_err("%s\n", apriori_paging_process[i]);
+			if (apriori_paging_process[i][0] != '\0') {
+				pr_err("%s\n", apriori_paging_process[i]);
+			}
 		}
 	return 0xdeadbeef;
 }
 
 asmlinkage long sys_clear_ep_apps_list(const char __user* process_name) {
-	pr_err("\n\n======================\npr_err: Inside system calls (%s)"
-		"\n============================\n\n", __func__);
+	pr_err("\n======================Inside system calls (%s)"
+		"============================", __func__);
 
 	int i = 0;
 	pr_err("\n\n =================== Clearing all Eager Paging Enabled"

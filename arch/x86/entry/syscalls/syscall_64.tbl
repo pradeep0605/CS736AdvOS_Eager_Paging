@@ -344,6 +344,7 @@
 335     64      init_identity_map       sys_init_identity_map
 336	common	list_ep_apps sys_list_ep_apps
 337	common	clear_ep_apps_list sys_clear_ep_apps_list
+338	common ep_control_syscall	sys_ep_control_syscall
 #
 # x32-specific system call numbers start at 512 to avoid cache impact
 # for native 64-bit operation.

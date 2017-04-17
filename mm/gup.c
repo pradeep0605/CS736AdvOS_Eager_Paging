@@ -20,6 +20,7 @@
 #include <asm/tlbflush.h>
 
 #include "internal.h"
+#include <linux/apriori_paging_alloc.h>
 
 /*extern int fill_page_table_manually_cow(struct mm_struct *mm , struct vm_area_struct *vma,
                                     unsigned long addr, unsigned long nr_pages, unsigned int flags);
@@ -376,6 +377,10 @@ static int faultin_page(struct task_struct *tsk, struct vm_area_struct *vma,
 	unsigned int fault_flags = 0;
 	int ret;
 
+	if (enable_dump_stack) {
+		dump_stack();
+	}
+
 	/* mlock all present pages, but do not fault in new pages */
 	if ((*flags & (FOLL_POPULATE | FOLL_MLOCK)) == FOLL_MLOCK)
 		return -ENOENT;
@@ -555,6 +560,7 @@ static int check_vma_flags(struct vm_area_struct *vma, unsigned long gup_flags)
  * instead of __get_user_pages. __get_user_pages should be used only if
  * you need some special @gup_flags.
  */
+
 static long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
@@ -603,7 +609,7 @@ static long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
                 struct zone* pzone;
                 node_0 = NODE_DATA(0);
 
-		apriori_order = 0;
+				apriori_order = 0;
 
 //                pzone = &node_0->node_zones[ZONE_DMA32];
                 pzone = &node_0->node_zones[ZONE_NORMAL];

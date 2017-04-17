@@ -13,7 +13,9 @@
 int main(int argc, char **argv) {
 
 	if (argc < 2) {
-		printf("Usage: ./ep_control [--add | --list | --clear app_name | --clear-all ]\n");
+		printf("Usage: ./ep_control [--add | --list | --clear app_name |"
+		" --clear-all | --ctrl #number ]\n");
+		printf("--ctrl #number options: \n1) enabled stack dump (-1) for disabling ]\n");
 		return 0;
 	}
 	
