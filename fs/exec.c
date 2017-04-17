@@ -1322,6 +1322,10 @@ void setup_new_exec(struct linux_binprm * bprm)
 	__set_task_comm(current, kbasename(bprm->filename), true);
 
         /* SWAPNIL: Check if we need to enable apriori paging for this process*/
+		
+		/*  Current is the current thread's task: struct task_struct from file
+		 	include/linux/sched.h		
+		 */
         if(is_process_of_apriori_paging(current->comm))
         {
                 current->mm->apriori_paging_en = 1;

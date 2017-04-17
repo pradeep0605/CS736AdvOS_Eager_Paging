@@ -44,6 +44,7 @@
 #include <linux/userfaultfd_k.h>
 #include <linux/moduleparam.h>
 #include <linux/pkeys.h>
+#include <linux/apriori_paging_alloc.h>
 
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
@@ -1541,6 +1542,9 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	unsigned long retval;
 	struct mm_struct *mm = current->mm;
 	unsigned long orig_len = 0;
+
+	ep_mmap_print("Application's name is %s. Requested length = %lu, requested addr = %x", current->comm, len, addr);
+
 	if (!(flags & MAP_ANONYMOUS)) {
 		audit_mmap_fd(fd, flags);
 		file = fget(fd);
