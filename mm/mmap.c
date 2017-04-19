@@ -1543,7 +1543,8 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	struct mm_struct *mm = current->mm;
 	unsigned long orig_len = 0;
 
-	ep_print("Application's name is %s. Requested length = %lu, requested addr = %x", current->comm, len, addr);
+	ep_print("Application's name is %s. Requested length = %lu, requested addr = %lu",
+		current->comm, len, addr);
 
 	if (!(flags & MAP_ANONYMOUS)) {
 		audit_mmap_fd(fd, flags);

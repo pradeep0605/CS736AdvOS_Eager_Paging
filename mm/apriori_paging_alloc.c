@@ -22,6 +22,15 @@ unsigned char enable_dump_stack;
 unsigned char enable_prints;
 
 
+inline long get_current_time() {
+	unsigned long int time = 0;
+	struct timespec tv;
+
+	getnstimeofday(&tv);
+
+	time = ((tv.tv_sec * BILLION) + tv.tv_nsec);
+	return time;
+}
 
 int indexof_apriori_paged_process(const char* proc_name);
 
@@ -54,10 +63,10 @@ asmlinkage long sys_ep_control_syscall(int val) {
 
 // asmlinkage long sys_list_ep_apps(void) {
 asmlinkage long sys_list_ep_apps() {
+	int i = 0;
 	pr_err("\n====================== Inside system calls (%s)"
 		"============================", __func__);
 	
-		int i = 0;
 		pr_err(" =================== Listing all Eager Paging Enabled"
 			"pplications =========================\n");
 		for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
@@ -69,10 +78,10 @@ asmlinkage long sys_list_ep_apps() {
 }
 
 asmlinkage long sys_clear_ep_apps_list(const char __user* process_name) {
+	int i = 0;
 	pr_err("\n======================Inside system calls (%s)"
 		"============================", __func__);
 
-	int i = 0;
 	pr_err("\n\n =================== Clearing all Eager Paging Enabled"
 		"pplications =========================\n");
 	if (process_name == NULL) {
@@ -99,8 +108,7 @@ asmlinkage long sys_clear_ep_apps_list(const char __user* process_name) {
 SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned int, num_procs, int, option)
 {
     unsigned int i = 0;
-    char *temp;
-    char proc[MAX_PROC_NAME_LEN];
+    // char proc[MAX_PROC_NAME_LEN];
     unsigned long ret = 0;
 
     struct task_struct *tsk;
@@ -119,15 +127,6 @@ SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned i
 			ret = strncpy_from_user(apriori_paging_process[i], proc_name[0],
 				MAX_PROC_NAME_LEN);
 		}
-		/*
-        for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
-            if ( i < num_procs )
-                ret = strncpy_from_user(proc, proc_name[i], MAX_PROC_NAME_LEN);
-            else
-                temp = strncpy(proc,"",MAX_PROC_NAME_LEN);
-            temp = strncpy(apriori_paging_process[i], proc, MAX_PROC_NAME_LEN-1);
-        }
-		*/
     }
 
     if ( option < 0 ) {
