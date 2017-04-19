@@ -6,7 +6,7 @@
 int main() {
         int *a, i;
         char * message = "Memory Allocation Happening here \n\n\n\n\n";
-	int n =  1024  * 4 * 32 - 32; 
+	int n =  1024  * 4 * 32 ; 
 	write(1, message, strlen(message));
 	a = malloc(n);
 	
