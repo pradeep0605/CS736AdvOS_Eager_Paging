@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
 		printf("Usage: ./ep_control [--add | --list | --clear app_name |"
 		" --clear-all | --ctrl #number ]\n");
 		printf("--ctrl #number options: \n1) enabled stack dump (-1) for disabling ]\n");
-		printf("2) enabled mmap prints (-2) for disabling ]\n");
+		printf("2) enabled prints (-2) for disabling ]\n");
 		return 0;
 	}
 	

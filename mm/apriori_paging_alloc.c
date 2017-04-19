@@ -19,7 +19,7 @@
 /* ALL golbals here */
 char apriori_paging_process[CONFIG_NR_CPUS][MAX_PROC_NAME_LEN];
 unsigned char enable_dump_stack;
-unsigned char enable_mmap_prints;
+unsigned char enable_prints;
 
 
 
@@ -41,11 +41,11 @@ asmlinkage long sys_ep_control_syscall(int val) {
 			break;
 
 		case 2:
-			enable_mmap_prints = 1;
+			enable_prints = 1;
 			pr_err("EP: Enabled mmap prints");
 			break;
 		case -2:
-			enable_mmap_prints = 0;
+			enable_prints = 0;
 			pr_err("EP: disabled mmap prints");
 			break;
 	}
