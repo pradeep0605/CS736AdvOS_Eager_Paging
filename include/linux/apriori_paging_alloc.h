@@ -22,6 +22,9 @@ long get_current_time(void);
 							pr_err(__VA_ARGS__)
 
 
+#define ep_dump_stack() if (enable_dump_stack) \
+							dump_stack()
+
 /* All three macros assume that time is give in nano seconds */
 #define IN_SECONDS(time)  ((double(time)) / (double(BILLION)))
 

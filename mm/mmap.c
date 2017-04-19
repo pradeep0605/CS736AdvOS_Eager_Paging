@@ -1320,6 +1320,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	*populate = 0;
 	*apriori_flag = 0;
 
+	ep_dump_stack();
 	if (!len)
 		return -EINVAL;
 
