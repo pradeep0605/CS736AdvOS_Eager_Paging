@@ -18,9 +18,13 @@
 
 /* ALL golbals here */
 char apriori_paging_process[CONFIG_NR_CPUS][MAX_PROC_NAME_LEN];
+ep_stats_t ep_statistics[CONFIG_NR_CPUS];
+ep_stats_t zeroed_stats;
+
 unsigned char enable_dump_stack;
 unsigned char enable_prints;
 
+ep_stats_t* indexof_process_stats(const char* proc_name);
 
 inline long get_current_time() {
 	unsigned long int time = 0;
@@ -62,50 +66,76 @@ asmlinkage long sys_ep_control_syscall(int val) {
 }
 
 // asmlinkage long sys_list_ep_apps(void) {
-asmlinkage long sys_list_ep_apps() {
+asmlinkage long sys_list_ep_apps(int is_stats) {
 	int i = 0;
-	pr_err("\n====================== Inside system calls (%s)"
-		"============================", __func__);
 	
+	if (is_stats == 0) {
 		pr_err(" =================== Listing all Eager Paging Enabled"
-			"pplications =========================\n");
+			" Applications =========================\n");
 		for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
 			if (apriori_paging_process[i][0] != '\0') {
 				pr_err("%s\n", apriori_paging_process[i]);
 			}
 		}
+	} else if (is_stats == 1) {
+		pr_err(" =================== Listing all Statistics Enabled"
+			" Applications =========================\n");
+		for (i = 0; i < CONFIG_NR_CPUS; ++i) {
+			if (ep_statistics[i].process_name[0] != '\0') {
+				pr_err("%-20s | Kernel Time : %-11lu | Kernel Entry %-11lu \n",
+				ep_statistics[i].process_name, ep_statistics[i].kernel_time,
+				ep_statistics[i].kernel_entry);
+			}
+		}
+	}
 	return 0xdeadbeef;
 }
 
-asmlinkage long sys_clear_ep_apps_list(const char __user* process_name) {
+asmlinkage long sys_clear_ep_apps_list(const char __user* process_name, int
+is_stats) {
 	int i = 0;
 	pr_err("\n======================Inside system calls (%s)"
 		"============================", __func__);
 
-	pr_err("\n\n =================== Clearing all Eager Paging Enabled"
-		"pplications =========================\n");
-	if (process_name == NULL) {
-		for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
-			if (apriori_paging_process[i][0] != '\0') {
-				pr_err("%s\n", apriori_paging_process[i]);
-				apriori_paging_process[i][0] = '\0';
+	if (is_stats == 0) {
+		if (process_name == NULL) {
+			for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
+				if (apriori_paging_process[i][0] != '\0') {
+					apriori_paging_process[i][0] = '\0';
+				}
+			}
+		} else {
+			int ret = indexof_apriori_paged_process(process_name);
+			if (ret != -1) {
+				apriori_paging_process[ret][0] = '\0';
+			} else {
+				pr_err("Application name %s not found in the list\n", process_name);
 			}
 		}
-	} else {
-		int ret = indexof_apriori_paged_process(process_name);
-		if (ret != -1) {
-			apriori_paging_process[ret][0] = '\0';
+	} else if (is_stats == 1) { /* syscall is to update stats information */
+		if (process_name == NULL) {
+			for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
+				if (ep_statistics[i].process_name[0] != '\0') {
+					ep_statistics[i] = zeroed_stats;
+				}
+			}
 		} else {
-			pr_err("Application name %s not found in the list\n", process_name);
+			ep_stats_t *ret = indexof_process_stats(process_name);
+			if (ret != NULL) {
+				*ret = zeroed_stats;
+			} else {
+				pr_err("Application name %s not found in the list\n", process_name);
+			}
 		}
+
 	}
 	
-	sys_list_ep_apps();
 	return 0xdeadbeef;
 }
 
 
-SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned int, num_procs, int, option)
+SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned
+int, num_procs, int, option)
 {
     unsigned int i = 0;
     // char proc[MAX_PROC_NAME_LEN];
@@ -117,7 +147,24 @@ SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned i
 	
 	printk(KERN_ALERT "\n\n======================\nInside system calls (%s)"
 		"\n============================\n\n", __func__);
-    if ( option > 0 ) {
+
+
+	/* Add the proc_name to the list of processes to be tracked for statistics
+	 * */
+	if (option == 1) {
+		i = 0;
+		if (num_procs == 1) {
+			while(ep_statistics[i].process_name[0] != '\0') {
+				i++;
+			}
+
+			ret = strncpy_from_user(ep_statistics[i].process_name, proc_name[0],
+				MAX_PROC_NAME_LEN);
+		}
+	}
+
+	/* Enabled eager Paging for proc_name process */
+    if ( option == 0 ) {
 		i = 0;
 		if (num_procs == 1) {
 			while(apriori_paging_process[i][0] != '\0') {
@@ -129,6 +176,7 @@ SYSCALL_DEFINE3(apriori_paging_alloc, const char __user**, proc_name, unsigned i
 		}
     }
 
+	/* Using pid */
     if ( option < 0 ) {
         for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ ) {
             if( i < num_procs ) {
@@ -158,6 +206,17 @@ int indexof_apriori_paged_process(const char* proc_name)
     }
 
     return -1;
+}
+
+ep_stats_t* indexof_process_stats(const char* proc_name)
+{
+    unsigned int i;
+    for ( i = 0 ; i < CONFIG_NR_CPUS ; i++ )     {
+        if (!strncmp(proc_name, ep_statistics[i].process_name, MAX_PROC_NAME_LEN))
+            return &ep_statistics[i];
+    }
+
+    return NULL;
 }
 
 int is_process_of_apriori_paging(const char* proc_name)

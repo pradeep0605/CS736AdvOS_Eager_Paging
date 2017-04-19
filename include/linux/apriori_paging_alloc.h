@@ -33,5 +33,10 @@ long get_current_time(void);
 #define IN_MICROSECS(time)  ((double(time)) / (double(MILLION)))
 
 
+typedef struct eager_paging_statistics {
+	char process_name[MAX_PROC_NAME_LEN]; /* Name of the process */
+	unsigned long kernel_time;  /* Amount of time spent in kernel for allocation */
+	unsigned long kernel_entry; /* Number of time we entered kernel for allocation */
+} ep_stats_t;
 
 #endif
