@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
 		" --clear-all-stats | --list-stats ]\n");
 		printf("--ctrl #number options: \n1) enabled stack dump (-1) for disabling ]\n");
 		printf("2) enabled prints (-2) for disabling ]\n");
+		printf("3) enabled stats (-3) disabling stats ]\n");
 		return 0;
 	}
 	

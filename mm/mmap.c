@@ -1320,7 +1320,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	*populate = 0;
 	*apriori_flag = 0;
 
-	ep_dump_stack();
+	// ep_dump_stack();
 	if (!len)
 		return -EINVAL;
 
@@ -1505,7 +1505,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
                 //mm->apriori_paging_mfile_en = 1;
                 *apriori_flag = 2; // memory mapped files
                 *populate = len;
-                //printk(KERN_INFO "mmap for memory mapped file - len: %ld...\n", len);
+                //ep_msg(KERN_INFO "mmap for memory mapped file - len: %ld...\n", len);
             } else if(prot == (PROT_READ | PROT_EXEC)) {
                 *apriori_flag = 2; // memory mapped code segment 
                 *populate = len;
@@ -1513,12 +1513,12 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
         }
 	else if (mm &&  mm->apriori_paging_en == 1)
 	{
-		printk("VMA not under Apriori Paging Addr: %lx Len: %lu Flags: 0x%lx Prot: 0x%lx\n",addr,len,flags,prot);
+		ep_msg("VMA not under Apriori Paging Addr: %lx Len: %lu Flags: 0x%lx Prot: 0x%lx\n",addr,len,flags,prot);
 	}
 
 	if(mm && mm->apriori_paging_en == 1 && *apriori_flag > 0) 
 	{
-		printk("VMA handled under Apriori Paging Addr: %lx Len: %lu Flags: 0x%lx Prot: 0x%lx\n",addr,len,flags,prot);
+		ep_msg("VMA handled under Apriori Paging Addr: %lx Len: %lu Flags: 0x%lx Prot: 0x%lx\n",addr,len,flags,prot);
 	}
     }
 
@@ -1543,6 +1543,12 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	unsigned long retval;
 	struct mm_struct *mm = current->mm;
 	unsigned long orig_len = 0;
+	ep_stats_t *stats = NULL;
+
+	stats = indexof_process_stats(current->comm);
+	incr_mmap_count(stats);
+	record_start_event(stats);
+
 
 	ep_print("Application's name is %s. Requested length = %lu, requested addr = %lu",
 		current->comm, len, addr);
@@ -1550,8 +1556,10 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 	if (!(flags & MAP_ANONYMOUS)) {
 		audit_mmap_fd(fd, flags);
 		file = fget(fd);
-		if (!file)
+		if (!file) {
+			record_end_event(stats);
 			return -EBADF;
+		}
 		if (is_file_hugepages(file))
 			len = ALIGN(len, huge_page_size(hstate_file(file)));
 		retval = -EINVAL;
@@ -1562,8 +1570,10 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 		struct hstate *hs;
 
 		hs = hstate_sizelog((flags >> MAP_HUGE_SHIFT) & SHM_HUGE_MASK);
-		if (!hs)
+		if (!hs) {
+			record_end_event(stats);
 			return -EINVAL;
+		}
 
 		len = ALIGN(len, huge_page_size(hs));
 		/*
@@ -1576,8 +1586,10 @@ SYSCALL_DEFINE6(mmap_pgoff, unsigned long, addr, unsigned long, len,
 				VM_NORESERVE,
 				&user, HUGETLB_ANONHUGE_INODE,
 				(flags >> MAP_HUGE_SHIFT) & MAP_HUGE_MASK);
-		if (IS_ERR(file))
+		if (IS_ERR(file)) {
+			record_end_event(stats);
 			return PTR_ERR(file);
+		}
 	}
 
 	flags &= ~(MAP_EXECUTABLE | MAP_DENYWRITE);
@@ -1593,17 +1605,17 @@ MAP_DENYWRITE)))))
 		{
 		int j;
 		unsigned long nr_pages = len/PAGE_SIZE;
-//		printk("nr_pages:%lu\n", nr_pages);
+//		ep_msg("nr_pages:%lu\n", nr_pages);
 		if( nr_pages < (1 << (MAX_ORDER-1))) /* Only optimize if less than
 2^MAX_ORDER */ {
-//			printk("Fixing the length artificially BEFORE:%lu\n", len);
+//			ep_msg("Fixing the length artificially BEFORE:%lu\n", len);
 			orig_len = len;
 			/* Find out if len is too big, or if len is perfect fit.. modify
  * orig_len accordingly*/
 			for (j = MAX_ORDER-1 ; j >= 0 ; j--) {
-//				printk("Trying j:%d size:%d\n", j, (1 << j));
+//				ep_msg("Trying j:%d size:%d\n", j, (1 << j));
 				if ( (( 1 << j ) > nr_pages) && ((1 << (j-1)) < nr_pages)) {
-//					printk("Found j:%d\n", j);
+//					ep_msg("Found j:%d\n", j);
 					len = (1 << j)*PAGE_SIZE;
 					break;
 				}
@@ -1611,13 +1623,14 @@ MAP_DENYWRITE)))))
 					orig_len = 0;
 				}
 			}
-			if (orig_len != len) 
-				printk("Fixing the length artificially AFTER:%lu\n", len);
+			if (orig_len != len) {
+				ep_msg("Fixing the length artificially AFTER:%lu\n", len);
+			}
 		}
 	}
 	retval = vm_mmap_pgoff(file, addr, len, prot, flags, pgoff);
 	if(orig_len) {
-		printk("MUNMAP BEFORE start:%lx len:%lu\n", retval+orig_len, len-orig_len);
+		ep_msg("MUNMAP BEFORE start:%lx len:%lu\n", retval+orig_len, len-orig_len);
                 if (!BAD_ADDR(retval) && (len > orig_len))
 			vm_munmap(retval+orig_len, len-orig_len);
 	}
@@ -1633,22 +1646,22 @@ MAP_FIXED)
 		phys_addr = get_pa(retval);
 		phys_vma = find_vma(mm, phys_addr);
 		
-		printk("BEFORE MMAP remap vm_start VA:%lx PA:%lx\n", vma->vm_start, get_pa(vma->vm_start));
-		printk("BEFORE MMAP remap vm_end VA:%lx PA:%lx\n", vma->vm_end-4096, get_pa(vma->vm_end-4096));
+		ep_msg("BEFORE MMAP remap vm_start VA:%lx PA:%lx\n", vma->vm_start, get_pa(vma->vm_start));
+		ep_msg("BEFORE MMAP remap vm_end VA:%lx PA:%lx\n", vma->vm_end-4096, get_pa(vma->vm_end-4096));
 		
 		if(phys_addr > TASK_SIZE - len)
-			printk("MMAP remap: Error 1: No space\n");
+			ep_msg("MMAP remap: Error 1: No space\n");
 		else if(phys_vma && (phys_addr + len > phys_vma->vm_start)){
-			printk("MMAP remap: Error 2: vma issues\n");
+			ep_msg("MMAP remap: Error 2: vma issues\n");
 			if(phys_vma)
-				printk("Conflicting vma start:%lx\n", phys_vma->vm_start);
+				ep_msg("Conflicting vma start:%lx\n", phys_vma->vm_start);
 		}
 		else if(get_pa(vma->vm_start)!=0 && current->mm->identity_mapping_en >= 2){
 			retval = move_vma(vma, vma->vm_start, PAGE_ALIGN(len), PAGE_ALIGN(len), phys_addr, &locked);
 			vma = find_vma(mm, retval);
-			printk("AFTER MMAP remap old->vm_start VA:%lx PA:%lx\n",
+			ep_msg("AFTER MMAP remap old->vm_start VA:%lx PA:%lx\n",
 				vma->vm_start, get_pa(vma->vm_start));
-			printk("AFTER MMAP remap old->vm_end VA:%lx PA:%lx\n",
+			ep_msg("AFTER MMAP remap old->vm_end VA:%lx PA:%lx\n",
 				vma->vm_end-4096, get_pa(vma->vm_end-4096));
 /*			if (offset_in_page(ret)) {
 				vm_unacct_memory(charged);
@@ -1659,6 +1672,7 @@ MAP_FIXED)
 	}
 
 out_fput:
+	record_end_event(stats);
 	if (file)
 		fput(file);
 	return retval;

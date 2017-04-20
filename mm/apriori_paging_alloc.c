@@ -23,10 +23,11 @@ ep_stats_t zeroed_stats;
 
 unsigned char enable_dump_stack;
 unsigned char enable_prints;
+unsigned char enable_stats;
 
 ep_stats_t* indexof_process_stats(const char* proc_name);
 
-inline long get_current_time() {
+inline unsigned long get_current_time(void) {
 	unsigned long int time = 0;
 	struct timespec tv;
 
@@ -34,6 +35,32 @@ inline long get_current_time() {
 
 	time = ((tv.tv_sec * BILLION) + tv.tv_nsec);
 	return time;
+}
+
+inline void record_start_event(ep_stats_t *application) {
+	if (application != NULL) {
+		application->start_time = get_current_time();
+		application->kernel_entry++;
+	}
+}
+
+inline void record_end_event(ep_stats_t *application) {
+	if (application != NULL) {
+		application->end_time = get_current_time();
+		application->kernel_time += (application->end_time - application->start_time);
+	}
+}
+
+inline void incr_pgfault_count(ep_stats_t *application) {
+	if (application != NULL) {
+		application->pagefault_entry_count++;
+	}
+}
+
+inline void incr_mmap_count(ep_stats_t *application) {
+	if (application != NULL) {
+		application->mmap_entry_count++;
+	}
 }
 
 int indexof_apriori_paged_process(const char* proc_name);
@@ -61,6 +88,14 @@ asmlinkage long sys_ep_control_syscall(int val) {
 			enable_prints = 0;
 			pr_err("EP: disabled mmap prints");
 			break;
+		case 3:
+			enable_stats = 1;
+			pr_err("EP: Enabled stats");
+			break;
+		case -3:
+			enable_stats = 0;
+			pr_err("EP: Disabled stats");
+			break;
 	}
 	return 0;
 }
@@ -82,9 +117,12 @@ asmlinkage long sys_list_ep_apps(int is_stats) {
 			" Applications =========================\n");
 		for (i = 0; i < CONFIG_NR_CPUS; ++i) {
 			if (ep_statistics[i].process_name[0] != '\0') {
-				pr_err("%-20s | Kernel Time : %-11lu | Kernel Entry %-11lu \n",
+				pr_err("%-20s | Kernel Time : %-11lu | Kernel Entry %-11lu |"
+				" Page Fault Count: %-11lu | Mmap Count: %-11lu\n" ,
 				ep_statistics[i].process_name, ep_statistics[i].kernel_time,
-				ep_statistics[i].kernel_entry);
+				ep_statistics[i].kernel_entry,
+				ep_statistics[i].pagefault_entry_count,
+				ep_statistics[i].mmap_entry_count);
 			}
 		}
 	}

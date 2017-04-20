@@ -23,6 +23,7 @@
 #include <asm/vsyscall.h>		/* emulate_vsyscall		*/
 #include <asm/vm86.h>			/* struct vm86			*/
 #include <asm/mmu_context.h>		/* vma_pkey()			*/
+#include <linux/apriori_paging_alloc.h> /* to collect statistics */
 
 #define CREATE_TRACE_POINTS
 #include <asm/trace/exceptions.h>
@@ -1210,6 +1211,9 @@ static inline bool smap_violation(int error_code, struct pt_regs *regs)
  * {,trace_}do_page_fault() have notrace on. Having this an actual function
  * guarantees there's a function trace entry.
  */
+
+#include <linux/apriori_paging_alloc.h>
+
 static noinline void
 __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		unsigned long address)
@@ -1219,6 +1223,15 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	struct mm_struct *mm;
 	int fault, major = 0;
 	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
+		
+	/* Team Root: Eager Paging Related statistics */
+	ep_stats_t *stats = NULL;                    
+	stats = indexof_process_stats(current->comm);
+	incr_pgfault_count(stats);
+	record_start_event(stats);
+
+
+	// ep_dump_stack();
 
 	tsk = current;
 	mm = tsk->mm;
@@ -1231,8 +1244,10 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		kmemcheck_hide(regs);
 	prefetchw(&mm->mmap_sem);
 
-	if (unlikely(kmmio_fault(regs, address)))
+	if (unlikely(kmmio_fault(regs, address))) {
+		record_end_event(stats);
 		return;
+	}
 
 	/*
 	 * We fault-in kernel-space virtual memory on-demand. The
@@ -1249,38 +1264,49 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	 */
 	if (unlikely(fault_in_kernel_space(address))) {
 		if (!(error_code & (PF_RSVD | PF_USER | PF_PROT))) {
-			if (vmalloc_fault(address) >= 0)
+			if (vmalloc_fault(address) >= 0) {
+				record_end_event(stats);
 				return;
+			}
 
-			if (kmemcheck_fault(regs, address, error_code))
+			if (kmemcheck_fault(regs, address, error_code)) {
+				record_end_event(stats);
 				return;
+			}
 		}
 
 		/* Can handle a stale RO->RW TLB: */
-		if (spurious_fault(error_code, address))
+		if (spurious_fault(error_code, address)) {
+			record_end_event(stats);
 			return;
+		}
 
 		/* kprobes don't want to hook the spurious faults: */
-		if (kprobes_fault(regs))
+		if (kprobes_fault(regs)) {
+			record_end_event(stats);
 			return;
+		}
 		/*
 		 * Don't take the mm semaphore here. If we fixup a prefetch
 		 * fault we could otherwise deadlock:
 		 */
 		bad_area_nosemaphore(regs, error_code, address, NULL);
-
+			record_end_event(stats);
 		return;
 	}
 
 	/* kprobes don't want to hook the spurious faults: */
-	if (unlikely(kprobes_fault(regs)))
+	if (unlikely(kprobes_fault(regs))) {
+		record_end_event(stats);
 		return;
+	}
 
 	if (unlikely(error_code & PF_RSVD))
 		pgtable_bad(regs, error_code, address);
 
 	if (unlikely(smap_violation(error_code, regs))) {
 		bad_area_nosemaphore(regs, error_code, address, NULL);
+		record_end_event(stats);
 		return;
 	}
 
@@ -1290,6 +1316,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 	 */
 	if (unlikely(faulthandler_disabled() || !mm)) {
 		bad_area_nosemaphore(regs, error_code, address, NULL);
+		record_end_event(stats);
 		return;
 	}
 
@@ -1336,6 +1363,7 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		if ((error_code & PF_USER) == 0 &&
 		    !search_exception_tables(regs->ip)) {
 			bad_area_nosemaphore(regs, error_code, address, NULL);
+			record_end_event(stats);
 			return;
 		}
 retry:
@@ -1352,12 +1380,14 @@ retry:
 	vma = find_vma(mm, address);
 	if (unlikely(!vma)) {
 		bad_area(regs, error_code, address);
+		record_end_event(stats);
 		return;
 	}
 	if (likely(vma->vm_start <= address))
 		goto good_area;
 	if (unlikely(!(vma->vm_flags & VM_GROWSDOWN))) {
 		bad_area(regs, error_code, address);
+		record_end_event(stats);
 		return;
 	}
 	if (error_code & PF_USER) {
@@ -1369,11 +1399,13 @@ retry:
 		 */
 		if (unlikely(address + 65536 + 32 * sizeof(unsigned long) < regs->sp)) {
 			bad_area(regs, error_code, address);
+			record_end_event(stats);
 			return;
 		}
 	}
 	if (unlikely(expand_stack(vma, address))) {
 		bad_area(regs, error_code, address);
+		record_end_event(stats);
 		return;
 	}
 
@@ -1384,6 +1416,7 @@ retry:
 good_area:
 	if (unlikely(access_error(error_code, vma))) {
 		bad_area_access_error(regs, error_code, address, vma);
+		record_end_event(stats);
 		return;
 	}
 
@@ -1411,17 +1444,21 @@ good_area:
 		}
 
 		/* User mode? Just return to handle the fatal exception */
-		if (flags & FAULT_FLAG_USER)
+		if (flags & FAULT_FLAG_USER) {
+			record_end_event(stats);
 			return;
+		}
 
 		/* Not returning to user mode? Handle exceptions or die: */
 		no_context(regs, error_code, address, SIGBUS, BUS_ADRERR);
+		record_end_event(stats);
 		return;
 	}
 
 	up_read(&mm->mmap_sem);
 	if (unlikely(fault & VM_FAULT_ERROR)) {
 		mm_fault_error(regs, error_code, address, vma, fault);
+		record_end_event(stats);
 		return;
 	}
 
